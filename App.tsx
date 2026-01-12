@@ -149,13 +149,20 @@ function App() {
   const [view, setView] = useState<'dashboard' | 'form' | 'preview'>('dashboard');
 
   // --- Logic to Save History ---
-  const saveChecklistHistory = (location: string) => {
-      if (!location) return;
+  const saveChecklistHistory = (checklist: ChecklistData) => {
+      if (!checklist.locationName) return;
       try {
-          const raw = localStorage.getItem('infracheck_history');
-          const history = raw ? JSON.parse(raw) : {};
-          history[location] = new Date().toISOString();
-          localStorage.setItem('infracheck_history', JSON.stringify(history));
+          // Save last visit date for dashboard
+          const rawDates = localStorage.getItem('infracheck_history');
+          const historyDates = rawDates ? JSON.parse(rawDates) : {};
+          historyDates[checklist.locationName] = new Date().toISOString();
+          localStorage.setItem('infracheck_history', JSON.stringify(historyDates));
+
+          // Save full checklist data for editing
+          const rawData = localStorage.getItem('infracheck_saved_data');
+          const savedData = rawData ? JSON.parse(rawData) : {};
+          savedData[checklist.locationName] = checklist;
+          localStorage.setItem('infracheck_saved_data', JSON.stringify(savedData));
       } catch (e) {
           console.error("Failed to save history", e);
       }
@@ -163,11 +170,22 @@ function App() {
 
   const startChecklistFromDashboard = (location?: string) => {
       if (location) {
-          setData({
-              ...initialChecklistState,
-              locationName: location,
-              visitDate: new Date().toISOString()
-          });
+          // Try to load saved data for this location
+          const rawData = localStorage.getItem('infracheck_saved_data');
+          const savedData = rawData ? JSON.parse(rawData) : {};
+          
+          if (savedData[location]) {
+              setData({
+                  ...savedData[location],
+                  visitDate: new Date().toISOString() // Update to current date
+              });
+          } else {
+              setData({
+                  ...initialChecklistState,
+                  locationName: location,
+                  visitDate: new Date().toISOString()
+              });
+          }
       } else {
           setData({ ...initialChecklistState, visitDate: new Date().toISOString() });
       }
@@ -198,7 +216,7 @@ function App() {
           return;
       }
       // Save history immediately when generating report
-      saveChecklistHistory(data.locationName);
+      saveChecklistHistory(data);
       setView('preview');
       window.scrollTo(0, 0);
   };
@@ -769,14 +787,26 @@ function App() {
                 </div>
             </div>
 
-            <button 
-                onClick={handleGenerateReport}
-                disabled={!data.locationName || !data.technicianName}
-                className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white font-bold py-4 rounded-xl shadow-lg shadow-blue-200 transition-all flex items-center justify-center gap-2 text-lg"
-            >
-                <Save className="w-6 h-6" />
-                Gerar Relatório
-            </button>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <button 
+                    onClick={() => {
+                        saveChecklistHistory(data);
+                        alert("Progresso salvo com sucesso!");
+                    }}
+                    className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-4 rounded-xl shadow-lg shadow-green-200 transition-all flex items-center justify-center gap-2 text-lg"
+                >
+                    <Save className="w-6 h-6" />
+                    Salvar Rascunho
+                </button>
+                <button 
+                    onClick={handleGenerateReport}
+                    disabled={!data.locationName || !data.technicianName}
+                    className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white font-bold py-4 rounded-xl shadow-lg shadow-blue-200 transition-all flex items-center justify-center gap-2 text-lg"
+                >
+                    <FileText className="w-6 h-6" />
+                    Gerar Relatório
+                </button>
+            </div>
             {(!data.locationName || !data.technicianName) && (
                 <p className="text-center text-sm text-red-500 mt-2">Preencha o Nome do Local e do Técnico para continuar.</p>
             )}
